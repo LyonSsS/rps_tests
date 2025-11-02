@@ -1,0 +1,26 @@
+# Foundry files
+cache/
+out/
+broadcast/
+.idea/
+
+# Environment variables
+.env
+
+# Node modules (if we add TypeScript tests later)
+node_modules/
+
+# Markdown files (exclude from first commit)
+*.md
+!README.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+*.swp
+*.swo
+*~
+
