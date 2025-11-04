@@ -10,6 +10,9 @@ broadcast/
 # Node modules (if we add TypeScript tests later)
 node_modules/
 
+# Test reports
+reports/
+
 # Markdown files (exclude from first commit)
 *.md
 !README.md

@@ -1170,5 +1170,203 @@ contract RockPaperScissorsTest is Test {
         assertEq(player1.balance, b1 + MIN_STAKE);
         assertEq(player2.balance, b2 + MIN_STAKE);
     }
+
+    // ============ Additional Tie Resolution Tests ============
+
+    function test_HandleTie_NobodyCallsAfterExpiration_FundsStayLocked() public {
+        vm.deal(player1, 1 ether);
+        vm.deal(player2, 1 ether);
+
+        bytes32 salt1 = keccak256("salt1");
+        bytes32 nonce1 = keccak256("nonce1");
+        bytes32 moveHash1 = generateCommitment(RockPaperScissors.Move.ROCK, salt1, nonce1);
+        bytes32 salt2 = keccak256("salt2");
+        bytes32 nonce2 = keccak256("nonce2");
+        bytes32 moveHash2 = generateCommitment(RockPaperScissors.Move.ROCK, salt2, nonce2);
+
+        vm.prank(player1);
+        uint256 gameId = rps.createGame{value: MIN_STAKE}(moveHash1);
+        vm.prank(player2);
+        rps.joinGame{value: MIN_STAKE}(gameId, moveHash2);
+        vm.prank(player1);
+        rps.reveal(gameId, RockPaperScissors.Move.ROCK, salt1, nonce1);
+        vm.prank(player2);
+        rps.reveal(gameId, RockPaperScissors.Move.ROCK, salt2, nonce2);
+
+        uint256 expectedLocked = MIN_STAKE * 2; // Both stakes
+
+        // Warp past tie resolution deadline
+        vm.warp(block.timestamp + 2 minutes + 1);
+
+        // Nobody calls handleTie - funds should remain locked
+        RockPaperScissors.Game memory game = rps.getGame(gameId);
+        assertEq(uint256(game.status), uint256(RockPaperScissors.GameStatus.TIE_RESOLUTION));
+        assertEq(address(rps).balance, expectedLocked); // Contract should still hold both stakes
+        
+        // Verify players didn't receive funds
+        assertEq(player1.balance, 1 ether - MIN_STAKE);
+        assertEq(player2.balance, 1 ether - MIN_STAKE);
+    }
+
+    function test_HandleTie_Player1CallsAfterExpiration_AutoSplits() public {
+        vm.deal(player1, 1 ether);
+        vm.deal(player2, 1 ether);
+
+        bytes32 salt1 = keccak256("salt1");
+        bytes32 nonce1 = keccak256("nonce1");
+        bytes32 moveHash1 = generateCommitment(RockPaperScissors.Move.ROCK, salt1, nonce1);
+        bytes32 salt2 = keccak256("salt2");
+        bytes32 nonce2 = keccak256("nonce2");
+        bytes32 moveHash2 = generateCommitment(RockPaperScissors.Move.ROCK, salt2, nonce2);
+
+        vm.prank(player1);
+        uint256 gameId = rps.createGame{value: MIN_STAKE}(moveHash1);
+        vm.prank(player2);
+        rps.joinGame{value: MIN_STAKE}(gameId, moveHash2);
+        vm.prank(player1);
+        rps.reveal(gameId, RockPaperScissors.Move.ROCK, salt1, nonce1);
+        vm.prank(player2);
+        rps.reveal(gameId, RockPaperScissors.Move.ROCK, salt2, nonce2);
+
+        uint256 balance1Before = player1.balance;
+        uint256 balance2Before = player2.balance;
+
+        // Warp past tie resolution deadline
+        vm.warp(block.timestamp + 2 minutes + 1);
+
+        // Player 1 calls handleTie after expiration - should auto-split regardless of choice
+        vm.prank(player1);
+        rps.handleTie(gameId, RockPaperScissors.TieChoice.REMATCH); // Choice doesn't matter after timeout
+
+        // Both players should receive their stake back
+        assertEq(player1.balance, balance1Before + MIN_STAKE);
+        assertEq(player2.balance, balance2Before + MIN_STAKE);
+        
+        // Contract should have no funds left
+        assertEq(address(rps).balance, 0);
+        
+        // Game status should be COMPLETED
+        RockPaperScissors.Game memory game = rps.getGame(gameId);
+        assertEq(uint256(game.status), uint256(RockPaperScissors.GameStatus.COMPLETED));
+    }
+
+    function test_HandleTie_Player2CallsAfterExpiration_AutoSplits() public {
+        vm.deal(player1, 1 ether);
+        vm.deal(player2, 1 ether);
+
+        bytes32 salt1 = keccak256("salt1");
+        bytes32 nonce1 = keccak256("nonce1");
+        bytes32 moveHash1 = generateCommitment(RockPaperScissors.Move.ROCK, salt1, nonce1);
+        bytes32 salt2 = keccak256("salt2");
+        bytes32 nonce2 = keccak256("nonce2");
+        bytes32 moveHash2 = generateCommitment(RockPaperScissors.Move.ROCK, salt2, nonce2);
+
+        vm.prank(player1);
+        uint256 gameId = rps.createGame{value: MIN_STAKE}(moveHash1);
+        vm.prank(player2);
+        rps.joinGame{value: MIN_STAKE}(gameId, moveHash2);
+        vm.prank(player1);
+        rps.reveal(gameId, RockPaperScissors.Move.ROCK, salt1, nonce1);
+        vm.prank(player2);
+        rps.reveal(gameId, RockPaperScissors.Move.ROCK, salt2, nonce2);
+
+        uint256 balance1Before = player1.balance;
+        uint256 balance2Before = player2.balance;
+
+        // Warp past tie resolution deadline
+        vm.warp(block.timestamp + 2 minutes + 1);
+
+        // Player 2 calls handleTie after expiration - should auto-split
+        vm.prank(player2);
+        rps.handleTie(gameId, RockPaperScissors.TieChoice.SPLIT); // Choice doesn't matter after timeout
+
+        // Both players should receive their stake back
+        assertEq(player1.balance, balance1Before + MIN_STAKE);
+        assertEq(player2.balance, balance2Before + MIN_STAKE);
+        
+        // Contract should have no funds left
+        assertEq(address(rps).balance, 0);
+    }
+
+    function test_HandleTie_SamePlayerCallsTwiceDuringPeriod_UpdatesChoice() public {
+        vm.deal(player1, 1 ether);
+        vm.deal(player2, 1 ether);
+
+        bytes32 salt1 = keccak256("salt1");
+        bytes32 nonce1 = keccak256("nonce1");
+        bytes32 moveHash1 = generateCommitment(RockPaperScissors.Move.ROCK, salt1, nonce1);
+        bytes32 salt2 = keccak256("salt2");
+        bytes32 nonce2 = keccak256("nonce2");
+        bytes32 moveHash2 = generateCommitment(RockPaperScissors.Move.ROCK, salt2, nonce2);
+
+        vm.prank(player1);
+        uint256 gameId = rps.createGame{value: MIN_STAKE}(moveHash1);
+        vm.prank(player2);
+        rps.joinGame{value: MIN_STAKE}(gameId, moveHash2);
+        vm.prank(player1);
+        rps.reveal(gameId, RockPaperScissors.Move.ROCK, salt1, nonce1);
+        vm.prank(player2);
+        rps.reveal(gameId, RockPaperScissors.Move.ROCK, salt2, nonce2);
+
+        // Player 1 calls handleTie first with REMATCH
+        vm.prank(player1);
+        rps.handleTie(gameId, RockPaperScissors.TieChoice.REMATCH);
+
+        RockPaperScissors.Game memory game = rps.getGame(gameId);
+        assertEq(uint256(game.tieChoices[0]), uint256(RockPaperScissors.TieChoice.REMATCH));
+
+        // Player 1 calls handleTie again with SPLIT - should update their choice
+        vm.prank(player1);
+        rps.handleTie(gameId, RockPaperScissors.TieChoice.SPLIT);
+
+        game = rps.getGame(gameId);
+        assertEq(uint256(game.tieChoices[0]), uint256(RockPaperScissors.TieChoice.SPLIT));
+        assertEq(uint256(game.status), uint256(RockPaperScissors.GameStatus.TIE_RESOLUTION));
+        
+        // Player 2 calls with REMATCH - should split (different choices)
+        vm.prank(player2);
+        rps.handleTie(gameId, RockPaperScissors.TieChoice.REMATCH);
+
+        // Should have split funds
+        assertEq(player1.balance, 1 ether - MIN_STAKE + MIN_STAKE); // Got stake back
+        assertEq(player2.balance, 1 ether - MIN_STAKE + MIN_STAKE); // Got stake back
+    }
+
+    function test_HandleTie_CalledAfterAlreadyHandled_Reverts() public {
+        vm.deal(player1, 1 ether);
+        vm.deal(player2, 1 ether);
+
+        bytes32 salt1 = keccak256("salt1");
+        bytes32 nonce1 = keccak256("nonce1");
+        bytes32 moveHash1 = generateCommitment(RockPaperScissors.Move.ROCK, salt1, nonce1);
+        bytes32 salt2 = keccak256("salt2");
+        bytes32 nonce2 = keccak256("nonce2");
+        bytes32 moveHash2 = generateCommitment(RockPaperScissors.Move.ROCK, salt2, nonce2);
+
+        vm.prank(player1);
+        uint256 gameId = rps.createGame{value: MIN_STAKE}(moveHash1);
+        vm.prank(player2);
+        rps.joinGame{value: MIN_STAKE}(gameId, moveHash2);
+        vm.prank(player1);
+        rps.reveal(gameId, RockPaperScissors.Move.ROCK, salt1, nonce1);
+        vm.prank(player2);
+        rps.reveal(gameId, RockPaperScissors.Move.ROCK, salt2, nonce2);
+
+        // Both players call handleTie to split
+        vm.prank(player1);
+        rps.handleTie(gameId, RockPaperScissors.TieChoice.SPLIT);
+        vm.prank(player2);
+        rps.handleTie(gameId, RockPaperScissors.TieChoice.SPLIT);
+
+        // Game should be COMPLETED now
+        RockPaperScissors.Game memory game = rps.getGame(gameId);
+        assertEq(uint256(game.status), uint256(RockPaperScissors.GameStatus.COMPLETED));
+
+        // Try to call handleTie again - should revert
+        vm.prank(player1);
+        vm.expectRevert(RockPaperScissors.GameNotInTieResolution.selector);
+        rps.handleTie(gameId, RockPaperScissors.TieChoice.SPLIT);
+    }
+
 }
 

@@ -16,6 +16,7 @@ A confidential Rock Paper Scissors decentralized application using a commit-reve
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) installed
 - Git installed
 - For testnet deployment: Sepolia ETH in your wallet
+- (Optional) Node.js 18+ and Yarn for TS E2E tests
 
 ## Installation
 
@@ -50,6 +51,13 @@ cp .env.example .env
 PRIVATE_KEY=your_private_key_here
 SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/your_key
 ETHERSCAN_API_KEY=your_etherscan_key
+
+# Optional TS test envs
+# Second wallet (optional)
+PRIVATE_KEY_2=0x...
+# Contract address when running TS tests on Sepolia
+CONTRACT_ADDRESS=0x...
+RPC_URL=https://sepolia.infura.io/v3/your_key
 ```
 
 Note on PRIVATE_KEY format:
@@ -102,6 +110,50 @@ forge test -vvv
 ```bash
 forge build
 ```
+
+## TypeScript E2E Tests (optional)
+
+**Setup:**
+```bash
+yarn install  # Required: installs TypeScript, viem, dotenv, etc.
+forge build    # Required: generates contract ABI/bytecode for TS tests
+```
+
+**Environment Variables (.env):**
+```bash
+# Required for all tests
+PRIVATE_KEY=0x...              # First wallet (player1)
+ANVIL_RPC_URL=http://127.0.0.1:8545  # Anvil RPC (default if not set)
+
+# Optional: second wallet for two-player tests
+PRIVATE_KEY_2=0x...            # Second wallet (player2)
+
+# Required for Sepolia tests
+SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/your_key
+CONTRACT_ADDRESS=0x...         # Deployed contract on Sepolia
+```
+
+**Note:** 
+- For Sepolia tests, gas price is automatically set to 1.2x current gas price for faster inclusion
+- Anvil uses default RPC URL `http://127.0.0.1:8545` if `ANVIL_RPC_URL` not set
+- The test automatically fetches the latest `gameId` from `GameCreated` events
+
+**Run against Anvil:**
+```bash
+# Terminal 1: Start Anvil
+anvil
+
+# Terminal 2: Run TS tests (uses ANVIL_RPC_URL from .env)
+yarn test:ts:anvil
+```
+
+**Run against Sepolia:**
+```bash
+# Uses SEPOLIA_RPC_URL and CONTRACT_ADDRESS from .env
+yarn test:ts:sepolia
+```
+
+**Note:** If `PRIVATE_KEY_2` is set, the test uses two different wallets (more realistic). Otherwise, it uses the same wallet for both players.
 
 ## How It Works
 
