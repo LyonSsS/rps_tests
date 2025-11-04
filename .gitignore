@@ -16,6 +16,7 @@ reports/
 # Markdown files (exclude from first commit)
 *.md
 !README.md
+!TEST_STRATEGY.md
 
 # OS files
 .DS_Store

@@ -2,6 +2,8 @@
 
 A confidential Rock Paper Scissors decentralized application using a commit-reveal scheme for move confidentiality. Players commit their moves as hashes, then reveal within a 2-minute window after both players have committed.
 
+**Deployed Sepolia Contract:** [0xDa929CFa4E076d9928674Ba4a3adf5E02E71f64C](https://sepolia.etherscan.io/address/0xDa929CFa4E076d9928674Ba4a3adf5E02E71f64C)
+
 ## Features
 
 - **Confidential Moves**: Uses commit-reveal scheme - players can see commitments but not actual moves until reveal
@@ -14,9 +16,9 @@ A confidential Rock Paper Scissors decentralized application using a commit-reve
 ## Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) installed
+- Node.js 18+ and Yarn
 - Git installed
-- For testnet deployment: Sepolia ETH in your wallet
-- (Optional) Node.js 18+ and Yarn for TS E2E tests
+- For testnet tests: Sepolia ETH in your wallet
 
 ## Installation
 
@@ -26,134 +28,139 @@ git clone https://github.com/LyonSsS/rps_tests.git
 cd rps_tests
 ```
 
-2. Install test library dependency (forge-std) and set remapping:
+2. Install dependencies:
 ```bash
-# Add forge-std test utils
+# Install forge-std test library
 forge install foundry-rs/forge-std@v1.9.5
 
-# Ensure remapping exists (once)
-printf '\nremappings = ["forge-std/=lib/forge-std/src/"]\n' >> foundry.toml
-```
+# Install Node.js dependencies (for TypeScript tests)
+yarn install
 
-3. (Optional) Clean and build to verify setup:
-```bash
-forge clean
+# Build contracts (generates ABIs needed for TS tests)
 forge build
 ```
 
-4. Create `.env` file (copy from `.env.example`):
+3. Create `.env` file:
 ```bash
 cp .env.example .env
 ```
 
-5. Fill in your `.env` file:
-```
-PRIVATE_KEY=your_private_key_here
-SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/your_key
-ETHERSCAN_API_KEY=your_etherscan_key
-
-# Optional TS test envs
-# Second wallet (optional)
-PRIVATE_KEY_2=0x...
-# Contract address when running TS tests on Sepolia
-CONTRACT_ADDRESS=0x...
-RPC_URL=https://sepolia.infura.io/v3/your_key
-```
-
-Note on PRIVATE_KEY format:
-- Use a 0x-prefixed hex private key (example: `0x0123abcd...`).
-- If your key is missing the prefix in your current shell session, you can export it as:
-```bash
-export PRIVATE_KEY=0x$PRIVATE_KEY
-```
-Then re-run the deploy command.
-
-## Quick Start
-
-### Run All Tests
-
-```bash
-forge test
-```
-
-This single command runs all tests (unit, integration, and E2E).
-
-### Test Layers (what each suite covers)
-
-- Unit (`test/RockPaperScissors.t.sol`): function-level logic, revert reasons, edge cases, all winner/tie branches, double-reveal, commitment mismatches, fixed-stake enforcement, timeout-claim unit cases.
-- Integration (`test/RockPaperScissorsIntegration.t.sol`): full contract flows and state transitions (create → join → reveal → resolve), tie flows (SPLIT/REMATCH), multiple concurrent games, and timeout-claim flows.
-- E2E (`test/RockPaperScissorsE2E.t.sol`): client-perspective journeys using events and balance assertions (complete happy path, discovery, cancel, rematch, and timeout-claim where only one player reveals or none reveal).
-
-Rationale: follow a test-pyramid – many fast unit tests, fewer integration, few E2E – for speed, debuggability, and realistic coverage.
-
-### Run Specific Test Suites
-
-```bash
-# Unit tests only
-forge test --match-path test/RockPaperScissors.t.sol
-
-# Integration tests only
-forge test --match-path test/RockPaperScissorsIntegration.t.sol
-
-# E2E tests only
-forge test --match-path test/RockPaperScissorsE2E.t.sol
-```
-
-### Run Tests with Verbose Output
-
-```bash
-forge test -vvv
-```
-
-### Build Contracts
-
-```bash
-forge build
-```
-
-## TypeScript E2E Tests (optional)
-
-**Setup:**
-```bash
-yarn install  # Required: installs TypeScript, viem, dotenv, etc.
-forge build    # Required: generates contract ABI/bytecode for TS tests
-```
-
-**Environment Variables (.env):**
+4. Configure `.env` file:
 ```bash
 # Required for all tests
 PRIVATE_KEY=0x...              # First wallet (player1)
-ANVIL_RPC_URL=http://127.0.0.1:8545  # Anvil RPC (default if not set)
-
-# Optional: second wallet for two-player tests
-PRIVATE_KEY_2=0x...            # Second wallet (player2)
+PRIVATE_KEY_2=0x...            # Second wallet (player2) - optional
 
 # Required for Sepolia tests
 SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/your_key
-CONTRACT_ADDRESS=0x...         # Deployed contract on Sepolia
+CONTRACT_ADDRESS=0xDa929CFa4E076d9928674Ba4a3adf5E02E71f64C  # Pre-deployed Sepolia contract
+
+# Optional
+ANVIL_RPC_URL=http://127.0.0.1:8545  # Default if not set
+ETHERSCAN_API_KEY=your_etherscan_key
 ```
 
-**Note:** 
-- For Sepolia tests, gas price is automatically set to 1.2x current gas price for faster inclusion
-- Anvil uses default RPC URL `http://127.0.0.1:8545` if `ANVIL_RPC_URL` not set
-- The test automatically fetches the latest `gameId` from `GameCreated` events
+**Note:** Use 0x-prefixed hex private keys (e.g., `0x0123abcd...`).
 
-**Run against Anvil:**
+## Running Tests
+
+All test commands are available via Yarn scripts in `package.json`. Test reports are automatically saved to the `reports/` folder.
+
+### Solidity Tests (Foundry)
+
+Run all Solidity tests:
 ```bash
-# Terminal 1: Start Anvil
-anvil
+yarn test:sol
+```
 
-# Terminal 2: Run TS tests (uses ANVIL_RPC_URL from .env)
+This runs all test suites:
+- **Unit Tests** (`sol_tests/RockPaperScissors.t.sol`): Function-level logic, revert reasons, edge cases
+- **Integration Tests** (`sol_tests/RockPaperScissorsIntegration.t.sol`): Full contract flows and state transitions
+- **E2E Tests** (`sol_tests/RockPaperScissorsE2E.t.sol`): Complete user journeys with events and balance assertions
+
+
+
+### TypeScript E2E Tests
+
+#### Viem-based Tests
+
+**Anvil (Local):**
+```bash
+# Terminal 1: Start Anvil with zero fees for exact assertions
+yarn anvil:zero
+
+# Terminal 2: Run tests
 yarn test:ts:anvil
 ```
 
-**Run against Sepolia:**
+**Sepolia (Testnet):**
 ```bash
-# Uses SEPOLIA_RPC_URL and CONTRACT_ADDRESS from .env
 yarn test:ts:sepolia
 ```
 
-**Note:** If `PRIVATE_KEY_2` is set, the test uses two different wallets (more realistic). Otherwise, it uses the same wallet for both players.
+#### Ethers.js-based Tests
+
+**Anvil (Local):**
+```bash
+# Terminal 1: Start Anvil with zero fees
+yarn anvil:zero
+
+# Terminal 2: Run tests
+yarn test:ethers:anvil
+```
+
+**Sepolia (Testnet):**
+```bash
+yarn test:ethers:sepolia
+```
+
+### Test Features
+
+- **Anvil Tests**: Zero-fee setup for exact balance assertions (perfect math)
+- **Sepolia Tests**: 
+  - Real-time event listening and polling
+  - Dynamic gas estimation with 1.3x multiplier
+  - Automatic gas fee calculation for balance assertions
+  - Time-based waiting for tie resolution deadlines
+
+### Test Reports
+
+All test output is automatically logged to the `reports/` folder with timestamps:
+- Format: `{testName}_{environment}_{timestamp}.log`
+- Examples:
+  - `run_viem_anvil_2025-11-04T18-02-30.log`
+  - `run_ethers_sepolia_2025-11-04T18-08-19.log`
+  - `forge_test_solidity_2025-11-04T18-10-45.log`
+
+## Project Structure
+
+```
+.
+├── src/
+│   └── RockPaperScissors.sol           # Main smart contract
+├── sol_tests/                           # Solidity test suites (Foundry)
+│   ├── RockPaperScissors.t.sol         # Unit tests
+│   ├── RockPaperScissorsIntegration.t.sol  # Integration tests
+│   └── RockPaperScissorsE2E.t.sol      # E2E tests
+├── ts_tests/                            # TypeScript E2E tests
+│   ├── run.ts                           # Viem-based test runner
+│   ├── run_ethers.ts                    # Ethers.js-based test runner
+│   ├── runForgeTest.ts                  # Foundry test wrapper
+│   ├── reportLogger.ts                  # Test report generator
+│   └── client/
+│       └── utils.ts                     # Test utilities
+├── reports/                              # Generated test reports (gitignored)
+├── script/
+│   └── Deploy.s.sol                     # Deployment script
+├── docs/
+│   └── TEST_STRATEGY.md                 # Testing strategy document
+├── .github/workflows/
+│   └── ci.yml                           # CI/CD pipeline
+├── foundry.toml                         # Foundry configuration
+├── package.json                         # Node.js dependencies and scripts
+├── tsconfig.json                        # TypeScript configuration
+└── README.md                             # This file
+```
 
 ## How It Works
 
@@ -226,25 +233,41 @@ rps.reveal(gameId, Move.PAPER, salt2, nonce2);
 - `TieHandled(uint256 indexed gameId, TieChoice player1Choice, TieChoice player2Choice, bool isRematch)`
 - `GameCancelled(uint256 indexed gameId)`
 
-## Testing
+## Testing Strategy
 
-### Test Structure
+### Test Pyramid
 
-- **Unit Tests** (`test/RockPaperScissors.t.sol`): Test individual functions
-- **Integration Tests** (`test/RockPaperScissorsIntegration.t.sol`): Test full game flows
-- **E2E Tests** (`test/RockPaperScissorsE2E.t.sol`): Test complete user journeys
+The project follows a test pyramid approach:
 
-See [TEST_STRATEGY.md](./docs/TEST_STRATEGY.md) for detailed testing strategy.
+- **Unit Tests** (`sol_tests/RockPaperScissors.t.sol`): Fast, isolated function tests
+  - Function-level logic and revert reasons
+  - Edge cases (timeouts, invalid commitments, double operations)
+  - All winner/tie combinations
+  - Fixed-stake enforcement
+
+- **Integration Tests** (`sol_tests/RockPaperScissorsIntegration.t.sol`): Full contract flows
+  - State transitions (create → join → reveal → resolve)
+  - Tie flows (SPLIT/REMATCH)
+  - Multiple concurrent games
+  - Timeout-claim flows
+
+- **E2E Tests** (`sol_tests/RockPaperScissorsE2E.t.sol` + TypeScript): Client-perspective journeys
+  - Complete happy paths
+  - Game discovery via events
+  - Balance assertions
+  - Real network interaction (Anvil + Sepolia)
+
+See [TEST_STRATEGY.md](./TEST_STRATEGY.md) for detailed testing strategy.
 
 ### Test Coverage
 
-Tests cover:
 - ✅ All core functions (create, join, reveal, handleTie, cancel)
-- ✅ Win/loss logic (all combinations)
+- ✅ Win/loss logic (3 wins to cover all 6 combinations + 2 tie scenarios)
 - ✅ Edge cases (timeouts, invalid commitments, double operations)
 - ✅ State transitions
-- ✅ Fund transfers
+- ✅ Fund transfers with exact balance assertions
 - ✅ Event emissions
+- ✅ Gas optimization testing
 
 ## Deployment
 
@@ -252,7 +275,7 @@ Tests cover:
 
 ```bash
 # Start Anvil
-anvil
+yarn anvil:zero  # or just: anvil
 
 # Deploy (in another terminal)
 forge script script/Deploy.s.sol:DeployScript --rpc-url http://localhost:8545 --broadcast
@@ -260,29 +283,11 @@ forge script script/Deploy.s.sol:DeployScript --rpc-url http://localhost:8545 --
 
 ### Sepolia Testnet
 
+The contract is already deployed at: [0xDa929CFa4E076d9928674Ba4a3adf5E02E71f64C](https://sepolia.etherscan.io/address/0xDa929CFa4E076d9928674Ba4a3adf5E02E71f64C)
+
+To deploy a new instance:
 ```bash
 forge script script/Deploy.s.sol:DeployScript --rpc-url $SEPOLIA_RPC_URL --broadcast --verify
-```
-
-## Project Structure
-
-```
-.
-├── src/
-│   └── RockPaperScissors.sol      # Main contract
-├── test/
-│   ├── RockPaperScissors.t.sol              # Unit tests
-│   ├── RockPaperScissorsIntegration.t.sol  # Integration tests
-│   └── RockPaperScissorsE2E.t.sol            # E2E tests
-├── script/
-│   └── Deploy.s.sol               # Deployment script
-├── docs/
-│   └── TEST_STRATEGY.md           # Testing strategy document
-├── .github/workflows/
-│   └── ci.yml                     # CI/CD pipeline
-├── foundry.toml                   # Foundry configuration
-├── .env.example                   # Environment variables template
-└── README.md                       # This file
 ```
 
 ## Security Considerations
